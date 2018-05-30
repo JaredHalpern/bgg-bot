@@ -14,38 +14,6 @@ app.config.from_object(__name__)
 
 BASE_API_URL = 'https://www.boardgamegeek.com//xmlapi2'
 
-def parseXML(xmlfile):
- 
-    # create element tree object
-	tree = ET.parse(xmlfile)
- 
-	# get root element
-	root = tree.getroot()
- 
-	# create empty list for news items
-	newsitems = []
- 
-	# iterate news items
-	for item in root.findall('./channel/item'):
- 
-		# empty news dictionary
-		news = {}
- 
-		# iterate child elements of item
-		for child in item:
- 
-			# special checking for namespace object content:media
-			if child.tag == '{http://search.yahoo.com/mrss/}content':
-				news['media'] = child.attrib['url']
-			else:
-				news[child.tag] = child.text.encode('utf8')
- 
-		# append news dictionary to news items list
-		newsitems.append(news)
-     
-	# return news items list
-	return newsitems
-
 @app.route('/', methods=['POST'])
 def defaultPOST():
 	if not is_request_valid(request):
@@ -82,10 +50,10 @@ def defaultPOST():
 	commandMethod = switchCommand(queryType)
 	xmlResult = commandMethod(params)
 
-	# result = parseXML(xmlResult)
+	result = parseXML(xmlResult)
 
 	return jsonify({
-		# 'text': result.body
+		'text': "hi"
 		# 'response_type': 'in_channel'
 		})
 
@@ -105,8 +73,7 @@ def searchBGG(term):
 def getHotGames(term):
 	api_url = BASE_API_URL + '/hot?boardgame'
 	r = requests.get(url=api_url)
-	print(r.status_code, r.reason, r.text)
-	
+	# print(r.status_code, r.reason, r.text)
 	return r.text
 
 def invalidQuery():
@@ -121,6 +88,26 @@ def switchCommand(value):
 		"hotgames" : getHotGames
 	}
 	return switcher.get(value)
+
+def parseXML(xmlfile):
+ 
+	root = ET.fromstring(xmlfile)
+	gameItems = []
+
+	# iterate games
+	for item in root.findall('./'):
+		gameDict = {}
+ 
+		# iterate child elements of item
+		for child in item:
+			print(child.tag, child.attrib)
+			# gameDict['thumbnail'] = child.tag['thumbnail']
+			# gameDict['name'] = child.tag['name'].attrib
+
+		gameItems.append(gameDict)
+
+	print("number of game items " + str(len(gameItems)))
+	return gameItems
 
 def is_request_valid(request):
 	is_token_valid = request.form['token'] == os.environ['SLACK_VERIFICATION_TOKEN']
