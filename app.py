@@ -1,5 +1,7 @@
+import re
 import os
 import csv
+import json
 import requests
 import xml.etree.ElementTree as ET
 from slackclient import SlackClient
@@ -9,6 +11,8 @@ slack_client = SlackClient(os.environ.get('SLACK_BGG_TOKEN'))
 
 app = Flask(__name__)
 app.config.from_object(__name__)
+
+BASE_API_URL = 'https://www.boardgamegeek.com//xmlapi2'
 
 def parseXML(xmlfile):
  
@@ -48,48 +52,75 @@ def defaultPOST():
 		abort(400)
 
 	# command = request.form.get('command', None)
-	command = request.form.get('text', None)
-	print(command)
-	commandMethod = switchCommand(command)
-	commandMethod()
+	userInput = request.form.get('text', None)
+	print("user input: " + userInput)
+	words = userInput.split()
+
+	queryType = words[0]
+	params = ''
+
+	for val in range (1, len(words)):
+		params += ' ' + words[val]
+
+	if not queryType:
+		invalidQuery()
 
 	# https://regex101.com/r/K6q4PR/1/
-	# not perfect - will allow for 1d66, 2d44, etc
-	REQUEST_REGEX = "^([^\s]+\s+)(...*)"
+	# REQUEST_REGEX = "^([^\s]+\s+)(...*)"
 
-	matches = re.search(REQUEST_REGEX, parameter_text)
+	# matches = re.search(REQUEST_REGEX, userInput)
 
-	if not matches:
-		return jsonify({
-				'text': 'BGG Result: ' + 'INVALID COMMAND - Try again!',
-				# 'attachments': [
-				# 			{
-				# 			'color': '#C70005',
-				# 			'author_name': 'BGG',
-				# 			# 'image_url': 'https://i.imgur.com/aSRSGkG.gif',
-				# 			}
-				# 			]
-				})
+	# if not matches:
+		# return jsonify({
+				# 'text': 'BGG Result: ' + 'INVALID COMMAND - Try again!'
+				# })
+
+	# queryType = matches.group(1)
+	# param1 = matches.group(2)
+	
+	# /bgg <querytype> optional: <param1>
+	commandMethod = switchCommand(queryType)
+	xmlResult = commandMethod(params)
+
+	# result = parseXML(xmlResult)
 
 	return jsonify({
-		'text': 'bgg result'
+		# 'text': result.body
 		# 'response_type': 'in_channel'
 		})
 
-def switchCommand(value):
-	
-	value = value.lower()
-
-	switcher = {
-		"search" : searchBGG
-		# list more commands here
-	}
-	return switcher.get(value, lambda: "not found")
-
 def searchBGG(term):
 	results = "none"
+	term = term.strip()
+
+	api_url = BASE_API_URL + '/search?query=' + term
+	print(api_url)
+	# r.headers['content-type']
+	r = requests.get(url=api_url)
+	# print(r.text)
+	print(r.status_code, r.reason, r.text)
 	
-	return results
+	return r.text
+
+def getHotGames(term):
+	api_url = BASE_API_URL + '/hot?boardgame'
+	r = requests.get(url=api_url)
+	print(r.status_code, r.reason, r.text)
+	
+	return r.text
+
+def invalidQuery():
+	return 'BGG Result: INVALID COMMAND - Try again!'
+
+def switchCommand(value):
+	value = str(value.lower()).strip()
+
+	switcher = {
+		"search" : searchBGG,
+		"hot" : getHotGames,
+		"hotgames" : getHotGames
+	}
+	return switcher.get(value)
 
 def is_request_valid(request):
 	is_token_valid = request.form['token'] == os.environ['SLACK_VERIFICATION_TOKEN']
